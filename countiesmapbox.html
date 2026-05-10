@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Massachusetts Counties</title>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+    <link
+      href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+      }
+
+      #map {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 100%;
+      }
+
+      .map-overlay {
+        position: absolute;
+        z-index: 1;
+        background: #fff;
+        padding: 12px;
+        border-radius: 4px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+      }
+
+      #features {
+        top: 10px;
+        left: 10px;
+      }
+
+      #features h2 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      #legend {
+        bottom: 30px;
+        right: 10px;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 4px;
+      }
+
+      .legend-key {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+      }
+
+      .county-popup h3 {
+        margin: 0 0 6px;
+        font-size: 15px;
+      }
+
+      .county-popup p {
+        margin: 2px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div class="map-overlay" id="features">
+      <h2>Massachusetts Counties</h2>
+    </div>
+    <div class="map-overlay" id="legend"></div>
+
+    <script>
+      mapboxgl.accessToken = "pk.eyJ1IjoiZXR1ZWxsIiwiYSI6ImNtbm1uNm1lazFrdGkycHBzMzVrdnJ6MHIifQ.X5UvUtAlR49BlTDvchapvg";
+
+      const map = new mapboxgl.Map({
+        container: "map",
+        center: [-71.482067, 42.202292],
+        style: "mapbox://styles/etuell/cmoxd1g06005h01ry8xx9e5b0",
+        zoom: 8
+      });
+
+      map.on("load", () => {
+        const layers = [
+          "Barnstable",
+          "Berkshire",
+          "Bristol",
+          "Dukes",
+          "Essex",
+          "Franklin",
+          "Hampden",
+          "Hampshire",
+          "Middlesex",
+          "Nantucket",
+          "Norfolk",
+          "Plymouth",
+          "Suffolk",
+          "Worcester"
+        ];
+
+        const colors = [
+          "#f75050",
+          "#f89244",
+          "#f7c640",
+          "#f0fc40",
+          "#c5f86d",
+          "#7af52e",
+          "#0bf95e",
+          "#23e5fb",
+          "#16c7f3",
+          "#0a68f5",
+          "#2316df",
+          "#b310e5",
+          "#ed1db5",
+          "#e83068"
+        ];
+
+        const legend = document.getElementById("legend");
+
+        layers.forEach((layer, index) => {
+          const item = document.createElement("div");
+          item.className = "legend-item";
+
+          const key = document.createElement("span");
+          key.className = "legend-key";
+          key.style.backgroundColor = colors[index];
+
+          const value = document.createElement("span");
+          value.textContent = layer;
+
+          item.appendChild(key);
+          item.appendChild(value);
+          legend.appendChild(item);
+        });
+
+        const populationByCounty = {
+          Barnstable: { population1980: 147925, population2020: 228996, change: 81071 },
+          Berkshire: { population1980: 145110, population2020: 129026, change: -16084 },
+          Bristol: { population1980: 474641, population2020: 579200, change: 104559 },
+          Dukes: { population1980: 8942, population2020: 20600, change: 11658 },
+          Essex: { population1980: 633632, population2020: 809829, change: 176197 },
+          Franklin: { population1980: 64317, population2020: 71029, change: 6712 },
+          Hampden: { population1980: 443018, population2020: 465825, change: 22807 },
+          Hampshire: { population1980: 138813, population2020: 162308, change: 23495 },
+          Middlesex: { population1980: 1367034, population2020: 1632002, change: 264968 },
+          Nantucket: { population1980: 5087, population2020: 14255, change: 9168 },
+          Norfolk: { population1980: 606587, population2020: 725981, change: 119394 },
+          Plymouth: { population1980: 405437, population2020: 530819, change: 125382 },
+          Suffolk: { population1980: 650142, population2020: 797936, change: 147794 },
+          Worcester: { population1980: 646352, population2020: 862111, change: 215759 }
+        };
+
+        const countyNameFields = [
+          "county",
+          "COUNTY",
+          "county_name",
+          "COUNTY_NAME",
+          "COUNTY_NAM",
+          "COUNTYNAME",
+          "name",
+          "NAME",
+          "NAMELSAD"
+        ];
+        const popup = new mapboxgl.Popup({
+          closeButton: false,
+          closeOnClick: false
+        });
+
+        const getCountyName = (feature) => {
+          if (!feature || !feature.properties) {
+            return "";
+          }
+
+          for (const field of countyNameFields) {
+            if (feature.properties[field]) {
+              return String(feature.properties[field]).replace(/\s+County$/i, "");
+            }
+          }
+
+          return "";
+        };
+
+        const formatNumber = (value) => value.toLocaleString("en-US");
+
+        const escapeHtml = (value) =>
+          String(value).replace(/[&<>\"']/g, (character) => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            "\"": "&quot;",
+            "\x27": "&#39;"
+          }[character]));
+
+        const getPopulationForCounty = (countyName) => {
+          const normalizedCountyName = countyName.toLowerCase();
+
+          return Object.entries(populationByCounty).find(
+            ([name]) => name.toLowerCase() === normalizedCountyName
+          )?.[1];
+        };
+
+        const getCountyPopupHtml = (countyName) => {
+          const population = getPopulationForCounty(countyName);
+
+          if (!population) {
+            return "<div class=\"county-popup\"><h3>" + escapeHtml(countyName) + "</h3></div>";
+          }
+
+          return "<div class=\"county-popup\">" +
+            "<h3>" + escapeHtml(countyName) + "</h3>" +
+            "<p><strong>1980 population:</strong> " + formatNumber(population.population1980) + "</p>" +
+            "<p><strong>2020 population:</strong> " + formatNumber(population.population2020) + "</p>" +
+            "<p><strong>Change:</strong> " + formatNumber(population.change) + "</p>" +
+            "</div>";
+        };
+
+        map.on("mousemove", (event) => {
+          const features = map.queryRenderedFeatures(event.point);
+          const countyFeature = features.find(
+            (feature) => feature.layer.type === "fill" && getCountyName(feature)
+          );
+
+          if (!countyFeature) {
+            map.getCanvas().style.cursor = "";
+            popup.remove();
+            return;
+          }
+
+          map.getCanvas().style.cursor = "pointer";
+          popup
+            .setLngLat(event.lngLat)
+            .setHTML(getCountyPopupHtml(getCountyName(countyFeature)))
+            .addTo(map);
+        });
+
+        map.on("mouseleave", () => {
+          map.getCanvas().style.cursor = "";
+          popup.remove();
+        });
+      });
+    </script>
+  </body>
+</html>
